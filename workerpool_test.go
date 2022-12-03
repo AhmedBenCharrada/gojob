@@ -1,7 +1,8 @@
-package gojob
+package gojob_test
 
 import (
 	"context"
+	"gojob"
 	"math/rand"
 	"sync"
 	"testing"
@@ -14,7 +15,7 @@ func TestWorkerPool(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.TODO(), 21*time.Second)
 	defer cancel()
 
-	pool := New(ctx, 5, 100)
+	pool := gojob.NewPool(ctx, 5, 100)
 
 	err := pool.Start()
 	assert.NoError(t, err)
@@ -58,10 +59,10 @@ loop:
 	assert.Equal(t, 0, jobCount)
 }
 
-func getTestJobs(wg *sync.WaitGroup, ch chan bool, count int, delayInMs int) []Job {
+func getTestJobs(wg *sync.WaitGroup, ch chan bool, count int, delayInMs int) []gojob.Job {
 	rand := rand.New(rand.NewSource(time.Now().UnixNano()))
 
-	jobs := make([]Job, 0, count)
+	jobs := make([]gojob.Job, 0, count)
 
 	for i := 0; i < count; i++ {
 		randDelay := delayInMs + rand.Intn(1000)
