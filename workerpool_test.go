@@ -64,9 +64,10 @@ func getTestJobs(wg *sync.WaitGroup, ch chan bool, count int, delayInMs int) []J
 	jobs := make([]Job, 0, count)
 
 	for i := 0; i < count; i++ {
+		randDelay := delayInMs + rand.Intn(1000)
 		jobs = append(jobs, func(ctx context.Context) {
 			defer wg.Done()
-			time.Sleep(time.Duration(delayInMs+rand.Intn(1000)) * time.Millisecond)
+			time.Sleep(time.Duration(randDelay) * time.Millisecond)
 			ch <- true
 		})
 	}

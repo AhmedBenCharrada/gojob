@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"sync"
 )
 
 type worker struct {
@@ -24,6 +25,7 @@ type Pool struct {
 	workers     []worker
 
 	started bool
+	mutex   *sync.Mutex
 }
 
 func New(ctx context.Context, maxWorkers int, buffer int) *Pool {
@@ -39,6 +41,7 @@ func New(ctx context.Context, maxWorkers int, buffer int) *Pool {
 		maxWorkers:  maxWorkers,
 		workerCount: 0,
 		workers:     make([]worker, maxWorkers),
+		mutex:       &sync.Mutex{},
 	}
 }
 
@@ -86,8 +89,9 @@ func (p *Pool) AddWorkers(count int) error {
 			ctx:  ctx,
 			stop: stop,
 		}
-
+		p.mutex.Lock()
 		p.workers = append(p.workers, w)
+		p.mutex.Unlock()
 		go w.start(ctx, p.jobChannel)
 	}
 
@@ -100,9 +104,11 @@ func (p *Pool) DeleteWorkers(count int) error {
 	}
 
 	for i := 0; i < count; i++ {
+		p.mutex.Lock()
 		w := p.workers[len(p.workers)-1]
 		w.stop()
 		p.workers = p.workers[:len(p.workers)-1]
+		p.mutex.Unlock()
 	}
 
 	p.workerCount -= count
