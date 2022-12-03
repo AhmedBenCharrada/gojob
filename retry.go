@@ -73,7 +73,7 @@ func include(errs []error, err error) bool {
 	return false
 }
 
-func orElse[T comparable](cond bool, val, other T) T {
+func orElse[T any](cond bool, val, other T) T {
 	if cond {
 		return val
 	}
