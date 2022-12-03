@@ -28,7 +28,7 @@ type Pool struct {
 	mutex   *sync.Mutex
 }
 
-func New(ctx context.Context, maxWorkers int, buffer int) *Pool {
+func NewPool(ctx context.Context, maxWorkers int, buffer int) *Pool {
 	poolCtx, stop := context.WithCancel(ctx)
 	if maxWorkers < 1 {
 		maxWorkers = 1
