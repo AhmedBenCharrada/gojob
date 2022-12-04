@@ -30,15 +30,12 @@ type Pool struct {
 
 func NewPool(ctx context.Context, maxWorkers int, buffer int) *Pool {
 	poolCtx, stop := context.WithCancel(ctx)
-	if maxWorkers < 1 {
-		maxWorkers = 1
-	}
 
 	return &Pool{
 		ctx:         poolCtx,
 		stop:        stop,
 		jobChannel:  make(chan Job, buffer),
-		maxWorkers:  maxWorkers,
+		maxWorkers:  orElse(maxWorkers > 0, maxWorkers, 1),
 		workerCount: 0,
 		workers:     make([]worker, maxWorkers),
 		mutex:       &sync.Mutex{},
@@ -51,11 +48,9 @@ func (p *Pool) Start() error {
 	}
 
 	p.started = true
-	if p.workerCount < 1 {
-		return p.AddWorkers(1)
-	}
+	workers := orElse(p.workerCount > 0, p.workerCount, 1)
 
-	return p.AddWorkers(p.workerCount)
+	return p.AddWorkers(workers)
 }
 
 func (p *Pool) Stop() {
