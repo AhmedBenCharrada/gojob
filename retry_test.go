@@ -13,7 +13,7 @@ import (
 
 func TestRun(t *testing.T) {
 	t.Run("successfully", func(t *testing.T) {
-		fn := func() (string, error) {
+		fn := func(_ context.Context) (string, error) {
 			return "done", nil
 		}
 
@@ -23,7 +23,7 @@ func TestRun(t *testing.T) {
 	})
 
 	t.Run("fail with an exit error", func(t *testing.T) {
-		fn := func() (string, error) {
+		fn := func(_ context.Context) (string, error) {
 			return "", fmt.Errorf("breaking error")
 		}
 
@@ -37,7 +37,7 @@ func TestRun(t *testing.T) {
 
 	t.Run("fail after max attempts", func(t *testing.T) {
 		tries := 0
-		fn := func() (string, error) {
+		fn := func(_ context.Context) (string, error) {
 			tries++
 			return "", fmt.Errorf("error")
 		}
@@ -54,7 +54,7 @@ func TestRun(t *testing.T) {
 	})
 
 	t.Run("fail after context timeout", func(t *testing.T) {
-		fn := func() (string, error) {
+		fn := func(_ context.Context) (string, error) {
 			return "", fmt.Errorf("error")
 		}
 

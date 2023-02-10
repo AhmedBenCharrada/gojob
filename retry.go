@@ -15,14 +15,14 @@ const (
 	DefaultMaxDelay     = 100 * time.Millisecond
 )
 
-func Run[T any](ctx context.Context, fn func() (T, error), maxTries int, initialDelay, maxDelay time.Duration, exitErrs []error) (T, error) {
+func Run[T any](ctx context.Context, fn func(context.Context) (T, error), maxTries int, initialDelay, maxDelay time.Duration, exitErrs []error) (T, error) {
 	maxTries = orElse(maxTries > 0, maxTries, DefaultMaxRetries)
 	initialDelay = orElse(initialDelay > 0, initialDelay, DefaultInitialDelay)
 	maxDelay = orElse(maxDelay > 0, maxDelay, DefaultMaxDelay)
 
 	attempts := 0
 	for {
-		res, err := fn()
+		res, err := fn(ctx)
 		if err == nil || include(exitErrs, err) {
 			return res, err
 		}
