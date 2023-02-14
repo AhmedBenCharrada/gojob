@@ -17,7 +17,7 @@ func TestRun(t *testing.T) {
 			return "done", nil
 		}
 
-		res, err := gojob.Run(context.TODO(), fn, 0, 0, 0, nil)
+		res, err := gojob.Run(context.TODO(), fn)
 		assert.NoError(t, err)
 		assert.Equal(t, "done", res)
 	})
@@ -27,9 +27,9 @@ func TestRun(t *testing.T) {
 			return "", fmt.Errorf("breaking error")
 		}
 
-		res, err := gojob.Run(context.TODO(), fn, 0, 0, 0, []error{
+		res, err := gojob.Run(context.TODO(), fn, gojob.WithExitError([]error{
 			fmt.Errorf("breaking error"),
-		})
+		}))
 		assert.Error(t, err)
 		assert.Equal(t, fmt.Errorf("breaking error"), err)
 		assert.Equal(t, "", res)
@@ -42,9 +42,9 @@ func TestRun(t *testing.T) {
 			return "", fmt.Errorf("error")
 		}
 
-		res, err := gojob.Run(context.TODO(), fn, 3, 0, 0, []error{
+		res, err := gojob.Run(context.TODO(), fn, gojob.WithMaxTries(3), gojob.WithMaxDelay(2*time.Second), gojob.WithExitError([]error{
 			fmt.Errorf("breaking error"),
-		})
+		}))
 		assert.Error(t, err)
 		assert.True(t, strings.Contains(err.Error(), "max attempt exceeded"))
 
@@ -61,7 +61,7 @@ func TestRun(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.TODO(), 500*time.Millisecond)
 		defer cancel()
 
-		res, err := gojob.Run(ctx, fn, 10, time.Second, 0, nil)
+		res, err := gojob.Run(ctx, fn, gojob.WithMaxTries(10), gojob.WithInitialDelay(time.Second))
 		assert.Error(t, err)
 		assert.True(t, strings.Contains(err.Error(), "context timeout"))
 
