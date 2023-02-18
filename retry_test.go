@@ -27,8 +27,8 @@ func TestRun(t *testing.T) {
 			return "", fmt.Errorf("breaking error")
 		}
 
-		res, err := gojob.Run(context.TODO(), fn, gojob.WithExitError([]error{
-			fmt.Errorf("breaking error"),
+		res, err := gojob.Run(context.TODO(), fn, gojob.WithExitFn(func(err error) bool {
+			return err.Error() == "breaking error"
 		}))
 		assert.Error(t, err)
 		assert.Equal(t, fmt.Errorf("breaking error"), err, err)
@@ -42,8 +42,8 @@ func TestRun(t *testing.T) {
 			return "", fmt.Errorf("error")
 		}
 
-		res, err := gojob.Run(context.TODO(), fn, gojob.WithMaxTries(3), gojob.WithMaxDelay(2*time.Second), gojob.WithExitError([]error{
-			fmt.Errorf("breaking error"),
+		res, err := gojob.Run(context.TODO(), fn, gojob.WithMaxTries(3), gojob.WithMaxDelay(2*time.Second), gojob.WithExitFn(func(err error) bool {
+			return err.Error() == "breaking error"
 		}))
 		assert.Error(t, err)
 		assert.True(t, strings.Contains(err.Error(), "max attempt exceeded"))

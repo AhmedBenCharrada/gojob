@@ -18,7 +18,7 @@ const (
 type parameters struct {
 	maxTries               int
 	initialDelay, maxDelay time.Duration
-	exitErrs               []error
+	exitFn                 func(error) bool
 }
 
 type parameter func(*parameters)
@@ -41,9 +41,9 @@ func WithMaxDelay(delay time.Duration) parameter {
 	}
 }
 
-func WithExitError(errs []error) parameter {
+func WithExitFn(fn func(error) bool) parameter {
 	return func(p *parameters) {
-		p.exitErrs = errs
+		p.exitFn = fn
 	}
 }
 
@@ -78,7 +78,7 @@ func run[T any](ctx context.Context, conf *parameters, fn func(context.Context) 
 	attempts := 0
 	for {
 		res, err := fn(ctx)
-		if err == nil || include(conf.exitErrs, err) {
+		if err == nil || (conf.exitFn != nil && conf.exitFn(err)) {
 			ch <- response[T]{
 				data: res,
 				err:  err,
