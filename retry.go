@@ -21,57 +21,78 @@ type parameters struct {
 	exitErrs               []error
 }
 
-type parameter func(parameters) parameters
+type parameter func(*parameters)
 
 func WithMaxTries(tries int) parameter {
-	return func(p parameters) parameters {
+	return func(p *parameters) {
 		p.maxTries = tries
-		return p
 	}
 }
 
 func WithInitialDelay(delay time.Duration) parameter {
-	return func(p parameters) parameters {
+	return func(p *parameters) {
 		p.initialDelay = delay
-		return p
 	}
 }
 
 func WithMaxDelay(delay time.Duration) parameter {
-	return func(p parameters) parameters {
+	return func(p *parameters) {
 		p.maxDelay = delay
-		return p
 	}
 }
 
 func WithExitError(errs []error) parameter {
-	return func(p parameters) parameters {
+	return func(p *parameters) {
 		p.exitErrs = errs
-		return p
 	}
 }
 
+type response[T any] struct {
+	data T
+	err  error
+}
+
 func Run[T any](ctx context.Context, fn func(context.Context) (T, error), params ...parameter) (T, error) {
-	conf := parameters{
+	conf := &parameters{
 		maxTries:     defaultMaxRetries,
 		initialDelay: defaultInitialDelay,
 		maxDelay:     defaultMaxDelay,
 	}
 
 	for _, param := range params {
-		conf = param(conf)
+		param(conf)
 	}
 
+	ch := make(chan response[T])
+	go run(ctx, conf, fn, ch)
+
+	select {
+	case res := <-ch:
+		return res.data, res.err
+	case <-ctx.Done():
+		return *new(T), ctx.Err()
+	}
+}
+
+func run[T any](ctx context.Context, conf *parameters, fn func(context.Context) (T, error), ch chan<- response[T]) {
 	attempts := 0
 	for {
 		res, err := fn(ctx)
 		if err == nil || include(conf.exitErrs, err) {
-			return res, err
+			ch <- response[T]{
+				data: res,
+				err:  err,
+			}
+			return
 		}
 
 		attempts++
 		if attempts == conf.maxTries {
-			return res, fmt.Errorf("max attempt exceeded: %w", err)
+			ch <- response[T]{
+				data: res,
+				err:  fmt.Errorf("max attempt exceeded: %w", err),
+			}
+			return
 		}
 
 		ticker := time.NewTimer(nextBackOff(attempts, conf.initialDelay, conf.maxDelay))
@@ -79,7 +100,11 @@ func Run[T any](ctx context.Context, fn func(context.Context) (T, error), params
 		case <-ticker.C:
 			continue
 		case <-ctx.Done():
-			return res, fmt.Errorf("context timeout: %w", err)
+			ch <- response[T]{
+				data: res,
+				err:  ctx.Err(),
+			}
+			return
 		}
 	}
 }

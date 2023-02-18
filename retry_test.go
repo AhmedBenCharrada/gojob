@@ -31,7 +31,7 @@ func TestRun(t *testing.T) {
 			fmt.Errorf("breaking error"),
 		}))
 		assert.Error(t, err)
-		assert.Equal(t, fmt.Errorf("breaking error"), err)
+		assert.Equal(t, fmt.Errorf("breaking error"), err, err)
 		assert.Equal(t, "", res)
 	})
 
@@ -63,7 +63,7 @@ func TestRun(t *testing.T) {
 
 		res, err := gojob.Run(ctx, fn, gojob.WithMaxTries(10), gojob.WithInitialDelay(time.Second))
 		assert.Error(t, err)
-		assert.True(t, strings.Contains(err.Error(), "context timeout"))
+		assert.Equal(t, context.DeadlineExceeded, err)
 
 		assert.Equal(t, "", res)
 	})
