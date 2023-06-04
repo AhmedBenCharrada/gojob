@@ -23,24 +23,28 @@ type parameters struct {
 
 type parameter func(*parameters)
 
+// WithMaxTries ..
 func WithMaxTries(tries int) parameter {
 	return func(p *parameters) {
 		p.maxTries = tries
 	}
 }
 
+// WithInitialDelay ..
 func WithInitialDelay(delay time.Duration) parameter {
 	return func(p *parameters) {
 		p.initialDelay = delay
 	}
 }
 
+// WithMaxDelay ..
 func WithMaxDelay(delay time.Duration) parameter {
 	return func(p *parameters) {
 		p.maxDelay = delay
 	}
 }
 
+// WithExitFn ..
 func WithExitFn(fn func(error) bool) parameter {
 	return func(p *parameters) {
 		p.exitFn = fn
@@ -52,6 +56,8 @@ type response[T any] struct {
 	err  error
 }
 
+// Run triggers the the function [fn] until it finishes with success, one of the exit errors is returned,
+// the maximum retry count is reached or the the function execution exceed the maximum timeout.
 func Run[T any](ctx context.Context, fn func(context.Context) (T, error), params ...parameter) (T, error) {
 	conf := &parameters{
 		maxTries:     defaultMaxRetries,
