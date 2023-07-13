@@ -5,6 +5,9 @@
 *.so
 *.dylib
 
+# Scratch files 
+.scratches 
+
 # Test binary, built with `go test -c`
 *.test
 
