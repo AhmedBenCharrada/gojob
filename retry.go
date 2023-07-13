@@ -23,28 +23,30 @@ type parameters struct {
 
 type parameter func(*parameters)
 
-// WithMaxTries ..
+// WithMaxTries defines the maximum retry count.
 func WithMaxTries(tries int) parameter {
 	return func(p *parameters) {
 		p.maxTries = tries
 	}
 }
 
-// WithInitialDelay ..
+// WithInitialDelay define the initial backoff delay before executing the next retry.
 func WithInitialDelay(delay time.Duration) parameter {
 	return func(p *parameters) {
 		p.initialDelay = delay
 	}
 }
 
-// WithMaxDelay ..
+// WithMaxDelay define the maximum backoff delay between retries.
 func WithMaxDelay(delay time.Duration) parameter {
 	return func(p *parameters) {
 		p.maxDelay = delay
 	}
 }
 
-// WithExitFn ..
+// WithExitFn defines the exist function callback.
+//
+// fn: a function that examine the retry-able function returned error and decides to proceed retrying or to quit.
 func WithExitFn(fn func(error) bool) parameter {
 	return func(p *parameters) {
 		p.exitFn = fn
@@ -56,7 +58,7 @@ type response[T any] struct {
 	err  error
 }
 
-// Run triggers the the function [fn] until it finishes with success, one of the exit errors is returned,
+// Run runs the the function "fn" until it finishes with success, one of the exit errors is returned,
 // the maximum retry count is reached or the the function execution exceed the maximum timeout.
 func Run[T any](ctx context.Context, fn func(context.Context) (T, error), params ...parameter) (T, error) {
 	conf := &parameters{
