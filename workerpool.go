@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"sync"
+
+	"github.com/google/uuid"
 )
 
 type worker struct {
-	id   int
+	id   string
 	ctx  context.Context
 	stop context.CancelFunc
 }
@@ -37,7 +39,7 @@ func NewPool(ctx context.Context, maxWorkers int, buffer int) *Pool {
 		jobChannel:  make(chan Job, buffer),
 		maxWorkers:  orElse(maxWorkers > 0, maxWorkers, 1),
 		workerCount: 0,
-		workers:     make([]worker, maxWorkers),
+		workers:     make([]worker, 0, maxWorkers),
 		mutex:       &sync.Mutex{},
 	}
 }
@@ -50,7 +52,8 @@ func (p *Pool) Start() error {
 	p.started = true
 	workers := orElse(p.workerCount > 0, p.workerCount, 1)
 
-	return p.AddWorkers(workers)
+	p.startWorkers(workers)
+	return nil
 }
 
 func (p *Pool) Stop() {
@@ -75,21 +78,7 @@ func (p *Pool) AddWorkers(count int) error {
 	if !p.started {
 		return nil
 	}
-
-	for i := 0; i < count; i++ {
-		ctx, stop := context.WithCancel(p.ctx)
-
-		w := worker{
-			id:   p.workerCount,
-			ctx:  ctx,
-			stop: stop,
-		}
-		p.mutex.Lock()
-		p.workers = append(p.workers, w)
-		p.mutex.Unlock()
-		go w.start(ctx, p.jobChannel)
-	}
-
+	p.startWorkers(count)
 	return nil
 }
 
@@ -108,6 +97,26 @@ func (p *Pool) DeleteWorkers(count int) error {
 
 	p.workerCount -= count
 	return nil
+}
+
+func (p *Pool) WorkerCount() int {
+	return p.workerCount
+}
+
+func (p *Pool) startWorkers(count int) {
+	for i := 0; i < count; i++ {
+		ctx, stop := context.WithCancel(p.ctx)
+
+		w := worker{
+			id:   uuid.NewString(),
+			ctx:  ctx,
+			stop: stop,
+		}
+		p.mutex.Lock()
+		p.workers = append(p.workers, w)
+		p.mutex.Unlock()
+		go w.start(ctx, p.jobChannel)
+	}
 }
 
 func (w *worker) start(ctx context.Context, ch <-chan Job) {

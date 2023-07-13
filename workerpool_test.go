@@ -4,7 +4,6 @@ import (
 	"context"
 	"gojob"
 	"math/rand"
-	"sync"
 	"testing"
 	"time"
 
@@ -12,66 +11,86 @@ import (
 )
 
 func TestWorkerPool(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.TODO(), 21*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	pool := gojob.NewPool(ctx, 5, 100)
+	pool := gojob.NewPool(ctx, 3, 1000)
+	// add 2 workers
+	err := pool.AddWorkers(2)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, pool.WorkerCount())
 
-	err := pool.Start()
+	// start the pool
+	err = pool.Start()
+	assert.NoError(t, err)
+	defer pool.Stop()
+
+	// re-trigger start
+	pool.Start()
+
+	// check if the number of workers did not increase due to re-triggering the start pool function.
+	assert.Equal(t, 2, pool.WorkerCount())
+
+	// add worker while the pool is on
+	err = pool.AddWorkers(1)
 	assert.NoError(t, err)
 
-	err = pool.AddWorkers(4)
+	// check if the worker count is increased
+	assert.Equal(t, 3, pool.WorkerCount())
+
+	// add another worker; should error with maximum allowed workers exceeded.
+	err = pool.AddWorkers(1)
+	assert.Error(t, err)
+	assert.Equal(t, 3, pool.WorkerCount())
+
+	// delete a worker
+	err = pool.DeleteWorkers(1)
 	assert.NoError(t, err)
 
-	jobCount := 10
-	ch := make(chan bool, jobCount)
-	wg := &sync.WaitGroup{}
-	wg.Add(jobCount)
+	// check if the number of workers is decreased.
+	assert.Equal(t, 2, pool.WorkerCount())
 
-	jobs := getTestJobs(wg, ch, jobCount, 1000)
+	// delete all workers; should error with can have the pool with no workers.
+	err = pool.DeleteWorkers(2)
+	assert.Error(t, err)
 
-	go func() {
-		wg.Wait()
-		close(ch)
-	}()
-
-	for _, job := range jobs {
-		err := pool.Push(job)
-		assert.NoError(t, err)
-	}
-
-loop:
-	for {
-		select {
-		case <-ctx.Done():
-			t.Fail()
-			break loop
-		case r := <-ch:
-			if r {
-				jobCount--
-				continue
-			}
-
-			break loop
-		}
-	}
-
-	assert.Equal(t, 0, jobCount)
+	// assert none of the workers were deleted
+	assert.Equal(t, 2, pool.WorkerCount())
 }
 
-func getTestJobs(wg *sync.WaitGroup, ch chan bool, count int, delayInMs int) []gojob.Job {
-	rand := rand.New(rand.NewSource(time.Now().UnixNano()))
-
-	jobs := make([]gojob.Job, 0, count)
-
-	for i := 0; i < count; i++ {
-		randDelay := delayInMs + rand.Intn(1000)
-		jobs = append(jobs, func(ctx context.Context) {
-			defer wg.Done()
-			time.Sleep(time.Duration(randDelay) * time.Millisecond)
-			ch <- true
-		})
+func TestWorkerPool_Push(t *testing.T) {
+	ch := make(chan bool)
+	j := func(ctx context.Context) {
+		time.Sleep(time.Duration(rand.Intn(3)) * time.Millisecond)
+		ch <- true
 	}
 
-	return jobs
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
+	defer cancel()
+
+	pool := gojob.NewPool(ctx, 3, 2)
+	time.AfterFunc(15*time.Millisecond, pool.Stop)
+
+	err := pool.Push(j)
+	assert.NoError(t, err)
+
+	err = pool.Start()
+	assert.NoError(t, err)
+
+	// this job should be queued
+	j2 := func(ctx context.Context) {
+		time.Sleep(time.Duration(rand.Intn(3)) * time.Millisecond)
+	}
+
+	err = pool.Push(j2)
+	assert.NoError(t, err)
+
+	// queue is full
+	err = pool.Push(func(ctx context.Context) {
+		time.Sleep(time.Duration(rand.Intn(3)) * time.Millisecond)
+	})
+	assert.Error(t, err)
+
+	// wait till the pool is close
+	<-ctx.Done()
 }
