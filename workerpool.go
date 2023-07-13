@@ -14,8 +14,10 @@ type worker struct {
 	stop context.CancelFunc
 }
 
+// Job the job function signature
 type Job func(context.Context)
 
+// Pool the worker pool.
 type Pool struct {
 	ctx  context.Context
 	stop context.CancelFunc
@@ -30,6 +32,7 @@ type Pool struct {
 	mutex   *sync.Mutex
 }
 
+// NewPool creates a new worker pool.
 func NewPool(ctx context.Context, maxWorkers int, buffer int) *Pool {
 	poolCtx, stop := context.WithCancel(ctx)
 
@@ -44,6 +47,7 @@ func NewPool(ctx context.Context, maxWorkers int, buffer int) *Pool {
 	}
 }
 
+// Start triggers all workers to start working.
 func (p *Pool) Start() error {
 	if p.started {
 		return nil
@@ -56,10 +60,12 @@ func (p *Pool) Start() error {
 	return nil
 }
 
+// Stop stops the worker pool.
 func (p *Pool) Stop() {
 	p.stop()
 }
 
+// Push pushes a new job to the worker pool.
 func (p *Pool) Push(job Job) error {
 	select {
 	case p.jobChannel <- job:
@@ -69,6 +75,7 @@ func (p *Pool) Push(job Job) error {
 	}
 }
 
+// AddWorkers adds new workers to the pool.
 func (p *Pool) AddWorkers(count int) error {
 	if p.workerCount+count > p.maxWorkers {
 		return fmt.Errorf("exceeded max allowed workers, remaining: %v", p.maxWorkers-p.workerCount)
@@ -82,6 +89,7 @@ func (p *Pool) AddWorkers(count int) error {
 	return nil
 }
 
+// DeleteWorkers deletes workers from the pool.
 func (p *Pool) DeleteWorkers(count int) error {
 	if len(p.workers)-count < 1 {
 		return fmt.Errorf("can't have a worker pool without any worker")
@@ -99,6 +107,7 @@ func (p *Pool) DeleteWorkers(count int) error {
 	return nil
 }
 
+// WorkerCount retrieves the workers count.
 func (p *Pool) WorkerCount() int {
 	return p.workerCount
 }
