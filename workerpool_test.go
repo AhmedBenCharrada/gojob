@@ -3,94 +3,60 @@ package gojob_test
 import (
 	"context"
 	"gojob"
-	"math/rand"
+	"log"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestWorkerPool(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
+	ctx, stop := context.WithTimeout(context.Background(), 3*time.Second)
+	defer stop()
 
-	pool := gojob.NewPool(ctx, 3, 1000)
-	// add 2 workers
-	err := pool.AddWorkers(2)
-	assert.NoError(t, err)
-	assert.Equal(t, 2, pool.WorkerCount())
+	pool := gojob.NewPool(ctx, 5)
 
-	// start the pool
-	err = pool.Start()
-	assert.NoError(t, err)
-	defer pool.Stop()
-
-	// re-trigger start
-	pool.Start()
-
-	// check if the number of workers did not increase due to re-triggering the start pool function.
-	assert.Equal(t, 2, pool.WorkerCount())
-
-	// add worker while the pool is on
-	err = pool.AddWorkers(1)
+	err := pool.PushJob(gojob.NewJob("job-0", gojob.JobType("type"), map[string]string{"owner": "system"}, func(ctx context.Context) {}))
 	assert.NoError(t, err)
 
-	// check if the worker count is increased
-	assert.Equal(t, 3, pool.WorkerCount())
+	j0 := pool.GetJobInfo("job-0")
+	assert.Equal(t, "job-0", j0.ID())
+	assert.Equal(t, gojob.Pending, j0.Status)
+	assert.NotEmpty(t, gojob.Pending, j0.Meta())
+	assert.Equal(t, "system", j0.Meta()["owner"])
 
-	// add another worker; should error with maximum allowed workers exceeded.
-	err = pool.AddWorkers(1)
-	assert.Error(t, err)
-	assert.Equal(t, 3, pool.WorkerCount())
+	assert.NoError(t, pool.CancelJob("job-0"))
 
-	// delete a worker
-	err = pool.DeleteWorkers(1)
-	assert.NoError(t, err)
+	wr := gojob.NewWorker(uuid.NewString(), gojob.JobType("type"), nil)
+	pool.AddWorkers([]*gojob.Worker{wr})
 
-	// check if the number of workers is decreased.
-	assert.Equal(t, 2, pool.WorkerCount())
-
-	// delete all workers; should error with can have the pool with no workers.
-	err = pool.DeleteWorkers(2)
-	assert.Error(t, err)
-
-	// assert none of the workers were deleted
-	assert.Equal(t, 2, pool.WorkerCount())
-}
-
-func TestWorkerPool_Push(t *testing.T) {
-	ch := make(chan bool)
-	j := func(ctx context.Context) {
-		time.Sleep(time.Duration(rand.Intn(3)) * time.Millisecond)
-		ch <- true
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
-	defer cancel()
-
-	pool := gojob.NewPool(ctx, 3, 2)
-	time.AfterFunc(15*time.Millisecond, pool.Stop)
-
-	err := pool.Push(j)
-	assert.NoError(t, err)
-
-	err = pool.Start()
-	assert.NoError(t, err)
-
-	// this job should be queued
-	j2 := func(ctx context.Context) {
-		time.Sleep(time.Duration(rand.Intn(3)) * time.Millisecond)
-	}
-
-	err = pool.Push(j2)
-	assert.NoError(t, err)
-
-	// queue is full
-	err = pool.Push(func(ctx context.Context) {
-		time.Sleep(time.Duration(rand.Intn(3)) * time.Millisecond)
+	job := gojob.NewJob("job-1", gojob.JobType("type"), nil, func(ctx context.Context) {
+		for i := 0; i < 5; i++ {
+			log.Println("job-1", i)
+			time.Sleep(time.Second)
+		}
 	})
-	assert.Error(t, err)
 
-	// wait till the pool is close
-	<-ctx.Done()
+	err = pool.PushJob(job)
+	assert.NoError(t, err)
+
+	err = pool.PushJob(gojob.NewJob("", gojob.JobType("type"), nil, func(ctx context.Context) {}))
+	assert.Error(t, err, "invalid job (missing job ID)")
+
+	time.Sleep(time.Second)
+
+	w, ok := pool.WorkerStatus.Get(wr.ID())
+	assert.True(t, ok)
+	assert.Equal(t, gojob.Busy, w.Status)
+
+	j := pool.GetJobInfo("job-1")
+	assert.Equal(t, "job-1", j.ID())
+	assert.Equal(t, gojob.Running, j.Status)
+
+	assert.Nil(t, pool.GetJobInfo("job-2"))
+	assert.Error(t, pool.CancelJob("job-2"))
+
+	assert.NoError(t, pool.CancelJob("job-1"))
+
 }
