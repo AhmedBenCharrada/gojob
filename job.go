@@ -45,10 +45,11 @@ type Job struct {
 }
 
 // NewJob ..
-func NewJob(id string, meta map[string]string, fn JobFn) *Job {
+func NewJob(id string, jobType JobType, meta map[string]string, fn JobFn) *Job {
 	now := uint64(time.Now().Unix())
 	return &Job{
 		id:        id,
+		kind:      jobType,
 		meta:      meta,
 		fn:        fn,
 		Status:    Pending,
