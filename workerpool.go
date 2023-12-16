@@ -3,15 +3,24 @@ package gojob
 import (
 	"context"
 	"fmt"
-	"sync"
 
 	"github.com/google/uuid"
 )
 
+// worker status.
+type status string
+
+// worker statuses
+const (
+	free status = "free"
+	busy status = "busy"
+)
+
 type worker struct {
-	id   string
-	ctx  context.Context
-	stop context.CancelFunc
+	id     string
+	status status
+	ctx    context.Context
+	stop   context.CancelFunc
 }
 
 // Job the job function signature
@@ -26,24 +35,23 @@ type Pool struct {
 
 	maxWorkers  int
 	workerCount int
-	workers     []worker
+	workers     *Map[string, *worker]
 
 	started bool
-	mutex   *sync.Mutex
 }
 
 // NewPool creates a new worker pool.
 func NewPool(ctx context.Context, maxWorkers int, buffer int) *Pool {
 	poolCtx, stop := context.WithCancel(ctx)
 
+	maxWorkers = orElse(maxWorkers > 0, maxWorkers, 1)
 	return &Pool{
 		ctx:         poolCtx,
 		stop:        stop,
 		jobChannel:  make(chan Job, buffer),
-		maxWorkers:  orElse(maxWorkers > 0, maxWorkers, 1),
+		maxWorkers:  maxWorkers,
 		workerCount: 0,
-		workers:     make([]worker, 0, maxWorkers),
-		mutex:       &sync.Mutex{},
+		workers:     new(Map[string, *worker]),
 	}
 }
 
@@ -91,16 +99,21 @@ func (p *Pool) AddWorkers(count int) error {
 
 // DeleteWorkers deletes workers from the pool.
 func (p *Pool) DeleteWorkers(count int) error {
-	if len(p.workers)-count < 1 {
+	if p.workers.Len()-count < 1 {
 		return fmt.Errorf("can't have a worker pool without any worker")
 	}
 
-	for i := 0; i < count; i++ {
-		p.mutex.Lock()
-		w := p.workers[len(p.workers)-1]
-		w.stop()
-		p.workers = p.workers[:len(p.workers)-1]
-		p.mutex.Unlock()
+	var deleted int
+	for deleted < count {
+		p.workers.Range(func(k string, w *worker) error {
+			if w.status == free {
+				w.stop()
+				deleted += 1
+				p.workers.Remove(k)
+			}
+
+			return nil
+		})
 	}
 
 	p.workerCount -= count
@@ -116,14 +129,14 @@ func (p *Pool) startWorkers(count int) {
 	for i := 0; i < count; i++ {
 		ctx, stop := context.WithCancel(p.ctx)
 
-		w := worker{
-			id:   uuid.NewString(),
-			ctx:  ctx,
-			stop: stop,
+		w := &worker{
+			id:     uuid.NewString(),
+			status: free,
+			ctx:    ctx,
+			stop:   stop,
 		}
-		p.mutex.Lock()
-		p.workers = append(p.workers, w)
-		p.mutex.Unlock()
+
+		p.workers.Put(w.id, w)
 		go w.start(ctx, p.jobChannel)
 	}
 }
@@ -134,6 +147,7 @@ func (w *worker) start(ctx context.Context, ch <-chan Job) {
 		case <-ctx.Done():
 			return
 		case job := <-ch:
+			w.status = busy
 			job(ctx)
 		}
 	}
