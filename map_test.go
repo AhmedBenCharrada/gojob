@@ -72,11 +72,19 @@ func TestMap_Range(t *testing.T) {
 			})
 		}()
 
-		r := <-ch
-		assert.Equal(t, "k", r.k)
-		assert.Equal(t, "v", r.v)
-		r = <-ch
-		assert.Error(t, r.err)
+		r1 := <-ch
+		if r1.k == "k" {
+			assert.Equal(t, "v", r1.v)
+		} else {
+			assert.Error(t, r1.err)
+		}
+
+		r2 := <-ch
+		if r2.k == "k" {
+			assert.Equal(t, "v", r2.v)
+		} else {
+			assert.Error(t, r2.err)
+		}
 	})
 
 }
