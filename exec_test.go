@@ -13,6 +13,7 @@ func TestExec(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		ch := make(chan []byte, 1000)
 		go printRes(ch)
+
 		cmd := gojob.NewCommand("sh", "./testdata/test.sh")
 
 		cmd.WithBeforeActions(func() error {
@@ -21,7 +22,7 @@ func TestExec(t *testing.T) {
 		})
 
 		cmd.WithOnExecActions(func(b []byte) error {
-			go write(ch, b)
+			write(ch, b)
 			return nil
 		})
 
@@ -36,23 +37,11 @@ func TestExec(t *testing.T) {
 	})
 
 	t.Run("with error withing before actions", func(t *testing.T) {
-		ch := make(chan []byte, 1000)
-		go printRes(ch)
 		cmd := gojob.NewCommand("sh", "./testdata/test.sh")
 
 		expectedErr := fmt.Errorf("error")
 		cmd.WithBeforeActions(func() error {
 			return expectedErr
-		})
-
-		cmd.WithOnExecActions(func(b []byte) error {
-			go write(ch, b)
-			return nil
-		})
-
-		cmd.WithAfterActions(func(error) error {
-			close(ch)
-			return nil
 		})
 
 		err := cmd.Run()

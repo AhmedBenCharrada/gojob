@@ -68,7 +68,10 @@ func newWriter(actions ...writeAction) *writer {
 
 func (w *writer) Write(in []byte) (int, error) {
 	for _, action := range w.actions {
-		if err := action(in); err != nil {
+		b := make([]byte, len(in))
+		copy(b, in)
+
+		if err := action(b); err != nil {
 			return -1, err
 		}
 	}
