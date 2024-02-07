@@ -1,7 +1,7 @@
 name: build
 
 permissions:
-  contents: read 
+  contents: read
 
 on:
   push:
@@ -12,7 +12,7 @@ on:
   workflow_call:
     inputs:
       skipTests:
-        description: 'Skip tests, useful when there is a dedicated CI job for tests'
+        description: "Skip tests, useful when there is a dedicated CI job for tests"
         default: false
         required: false
         type: boolean
@@ -25,12 +25,10 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        go: ['stable']
+        go: ["stable"]
 
     steps:
-      - name: Check out code
-        uses: actions/checkout@v3
-
+      - uses: actions/checkout@v4
       - name: Install Go
         uses: actions/setup-go@v4
         with:
